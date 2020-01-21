@@ -1322,6 +1322,7 @@ def test_kitti_3d(dataset_test, net, rpn_conf, results_path, test_path, use_log=
     from lib.imdb_util import read_kitti_cal
 
     imlist = list_files(os.path.join(test_path, dataset_test, 'validation', 'image_2', ''), '*.png')
+    # imlist = list_files(os.path.join(test_path, dataset_test, 'validation', 'prev_2', ''), '*.png')
 
     preprocess = Preprocess([rpn_conf.test_scale], rpn_conf.image_means, rpn_conf.image_stds)
 
@@ -1333,13 +1334,17 @@ def test_kitti_3d(dataset_test, net, rpn_conf, results_path, test_path, use_log=
     test_start = time()
 
     for imind, impath in enumerate(imlist):
-
+        print(impath)
         im = cv2.imread(impath)
+        if im is None:
+            continue
 
         base_path, name, ext = file_parts(impath)
 
         # read in calib
         p2 = read_kitti_cal(os.path.join(test_path, dataset_test, 'validation', 'calib', name + '.txt'))
+        # p2 = read_kitti_cal(os.path.join(test_path, dataset_test, 'validation', 'calib', name.split('_')[0] + '.txt'))
+
         p2_inv = np.linalg.inv(p2)
 
         # forward test batch
@@ -1408,7 +1413,6 @@ def test_kitti_3d(dataset_test, net, rpn_conf, results_path, test_path, use_log=
 
             if use_log: logging.info(print_str)
             else: print(print_str)
-
 
     # evaluate
     script = os.path.join(test_path, dataset_test, 'devkit', 'cpp', 'evaluate_object')
