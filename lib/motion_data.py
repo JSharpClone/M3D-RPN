@@ -19,7 +19,10 @@ class MotionDataset(Dataset):
     def __init__(self, phase='training'):
         super(MotionDataset, self).__init__()
 
-        self.raw_kitti = RawKitti()
+        if phase == 'training':
+            self.raw_kitti = RawKitti(mode='train')
+        else:
+            self.raw_kitti = RawKitti(mode='val')
 
         data_root = os.path.join('/home/jsharp/M3D-RPN/data/kitti_split1/', phase)
         anns_path = os.path.join(data_root, 'motion.json')

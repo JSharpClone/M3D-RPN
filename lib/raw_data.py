@@ -142,29 +142,33 @@ def get_IMU_to_CAM_and_K(date):
 
     return imu2cam, k
 
-def get_P2(idx):
-    with open(f'/home/jsharp/M3D-RPN/data/kitti_split1/training/calib/{idx}.txt', 'r') as f:
-        p2 = f.readlines()[2]
+def get_P2(idx, mode):
+    if mode == 'train':
+        with open(f'/home/jsharp/M3D-RPN/data/kitti_split1/training/calib/{idx}.txt', 'r') as f:
+            p2 = f.readlines()[2]
+    else:
+        with open(f'/home/jsharp/M3D-RPN/data/kitti_split1/validation/calib/{idx}.txt', 'r') as f:
+            p2 = f.readlines()[2]
     p2 = list(map(float, p2.split()[1:]))
     p2 = np.array(p2).reshape(3, 4)
     return p2
 
-def get_3d_label(idx):
-    labels = pd.read_csv(f'/home/jsharp/M3D-RPN/data/kitti_split1/training/label_2/{idx}.txt', header=None, delimiter=' ')
-    labels.drop(columns=labels.columns[15:], inplace=True)
-    labels.columns = ['class', 'truncate', 'occ', 'alpha', 'x1', 'y1', 'x2', 'y2', 'h3d', 'w3d', 'l3d', 'x3d', 'y3d', 'z3d', 'ry3d']
-    bbox_3d = labels[['x3d', 'y3d', 'z3d', 'w3d', 'h3d', 'l3d', 'ry3d']].values
-    bbox_3d[:, 1] -= bbox_3d[:, 4] / 2
-    return bbox_3d[:, 0:3], bbox_3d[:, 3:6], bbox_3d[:, 6]
+# def get_3d_label(idx):
+#     labels = pd.read_csv(f'/home/jsharp/M3D-RPN/data/kitti_split1/training/label_2/{idx}.txt', header=None, delimiter=' ')
+#     labels.drop(columns=labels.columns[15:], inplace=True)
+#     labels.columns = ['class', 'truncate', 'occ', 'alpha', 'x1', 'y1', 'x2', 'y2', 'h3d', 'w3d', 'l3d', 'x3d', 'y3d', 'z3d', 'ry3d']
+#     bbox_3d = labels[['x3d', 'y3d', 'z3d', 'w3d', 'h3d', 'l3d', 'ry3d']].values
+#     bbox_3d[:, 1] -= bbox_3d[:, 4] / 2
+#     return bbox_3d[:, 0:3], bbox_3d[:, 3:6], bbox_3d[:, 6]
 
-def get_2d_label(idx, prev=False):
-    if prev:
-        labels = np.genfromtxt(f'/mnt/data/KITTI/object/training/label_2/{idx}.txt')
-    else:
-        labels = np.genfromtxt(f'/home/jsharp/M3D-RPN/object/training/label_2/{idx}.txt')
-    num_objs = labels.shape[0]
-    box_2d = np.vstack([labels[:, 4], labels[:, 5], labels[:, 6], labels[:, 7]])
-    return box_2d.T
+# def get_2d_label(idx, prev=False):
+#     if prev:
+#         labels = np.genfromtxt(f'/mnt/data/KITTI/object/training/label_2/{idx}.txt')
+#     else:
+#         labels = np.genfromtxt(f'/home/jsharp/M3D-RPN/object/training/label_2/{idx}.txt')
+#     num_objs = labels.shape[0]
+#     box_2d = np.vstack([labels[:, 4], labels[:, 5], labels[:, 6], labels[:, 7]])
+#     return box_2d.T
 
 class RawKitti():
     def __init__(self, mode='train'):
@@ -177,6 +181,8 @@ class RawKitti():
             
         with open(f'/mnt/data/KITTI/ImageSets/{mode}.txt', 'r') as f:
             self.split1_to_kitti = [line.strip() for line in f.readlines()]
+        
+        self.mode = mode
 
     def get_previous_p2(self, split1_idx, previous_num=1):
         raw_data = get_raw_data_from_split1_idx(self.permutation, self.mapping, self.split1_to_kitti, split1_idx)
@@ -190,7 +196,7 @@ class RawKitti():
         relative_pose = imu2cam @ np.linalg.inv(tar_pose) @ ref_pose @ np.linalg.inv(imu2cam)
         relative_pose = relative_pose[:3, :] # [3, 4]
         
-        p2 = get_P2(split1_idx)
+        p2 = get_P2(split1_idx, self.mode)
         rt_2 = np.linalg.inv(K) @ p2
         rt_2 = np.vstack([rt_2, np.array([0, 0, 0, 1])])
         p_target = K @ relative_pose @ rt_2

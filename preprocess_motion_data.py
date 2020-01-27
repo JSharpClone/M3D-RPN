@@ -9,7 +9,6 @@ import pandas as pd
 import json
 from tqdm import tqdm
 
-phase = 'validation'
 
 def get_label_bbox(filename):
     labels = pd.read_csv(filename, header=None, delimiter=' ')
@@ -22,9 +21,15 @@ def get_label_bbox(filename):
     bbox_3d[:, 1] -= bbox_3d[:, 4] / 2
     return bbox_2d, bbox_3d
 
+phase = 'training'
+
+if phase == 'training':
+    num_data = 3712
+else:
+    num_data = 3769
+
 anns = []
-for i in tqdm(range(3769)):
-    output_idx = len(anns)
+for i in tqdm(range(num_data)):
     idx = f'{i:06d}'
     data_root = f'/home/jsharp/M3D-RPN/data/kitti_split1/{phase}/'
 
@@ -75,6 +80,7 @@ for i in tqdm(range(3769)):
     boxes2[:, 1::2] = np.clip(boxes2[:, 1::2], 0, h-1)
 
     for box1, box2, box_3d in zip(boxes1, boxes2, boxes_3d):
+        output_idx = len(anns)
         curr_output = Image.new('RGB', (w, h))
         prev_output = Image.new('RGB', (w, h))
         curr_output.paste(curr_img.crop(box1), box1)

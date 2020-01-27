@@ -13,7 +13,7 @@ def fc_relu(in_channel, out_channel):
             )
 
 VECTOR_SIZE = 3
-SCALE_TRANSLATION = 0.001
+SCALE_TRANSLATION = 0.01
 
 class Motion(nn.Module):
 
@@ -27,17 +27,15 @@ class Motion(nn.Module):
         self.conv5 = conv_relu(128, 256, 3, stride=2)
         self.conv6 = conv_relu(256, 256, 3, stride=2)
         self.conv7 = conv_relu(256, 256, 3, stride=2)
-        # self.fc1 = fc_relu(3072+3, 512)
-        # self.fc2 = fc_relu(512, 128)
-        # self.motion_predict = nn.Linear(128, 3)
-        self.motion_predict = nn.Conv2d(256, VECTOR_SIZE, 1)
+        self.motion_predict = nn.Linear(1024+3, VECTOR_SIZE)
+        # self.motion_predict = nn.Conv2d(256, VECTOR_SIZE, 1)
     
     def forward(self, data):
         curr_image = data['curr_image']
         prev_image = data['prev_image']
         image = torch.cat([curr_image, prev_image], dim=1)
 
-        ego_motion_t = data['ego_motion_t']
+        ego_motion_t = data['ego_motion_t'] * SCALE_TRANSLATION
 
         batch_size = curr_image.size(0)
         # (128, 416)
@@ -49,12 +47,12 @@ class Motion(nn.Module):
         x = self.conv6(x)
         x = self.conv7(x)
 
-        # x = x.view(batch_size, -1)
-        # x = torch.cat([x, ego_motion_t], dim=1)
+        x = x.view(batch_size, -1)
+        x = torch.cat([x, ego_motion_t], dim=1)
         # x = self.fc1(x)
         # x = self.fc2(x)
         motion = self.motion_predict(x)
-        motion = motion.mean(dim=[2,3])
+        # motion = motion.mean(dim=[2,3])
         # motion = motion * SCALE_TRANSLATION
 
         return motion

@@ -6,16 +6,31 @@ from torch.utils.data import DataLoader
 from lib.motion_data import MotionDataset
 from lib.rpn_util import iou
 
-SCALE_TRANSLATION = 0.001
+SCALE_TRANSLATION = 0.01
 HEIGHT = 128 # 512
 WIDTH = 416 # 1760
 
-def get_iou_loss(iou_2d, bbox_weights):
-    # iou_2d_loss = -torch.log(iou_2d) # TODO
-    iou_2d_loss = 1-iou_2d
-    iou_2d_loss = (iou_2d_loss * bbox_weights)
-    iou_2d_loss = iou_2d_loss.mean()
-    return iou_2d_loss
+def intersect(box_a, box_b, sign=False):
+    max_xy = torch.min(box_a[:, 2:], box_b[:, 2:])
+    min_xy = torch.max(box_a[:, :2], box_b[:, :2])
+    if sign:
+        inter = max_xy - min_xy
+        mask = (inter[:, 0] < 0) & (inter[:, 1] < 0)
+        output = inter[:, 0] * inter[:, 1]
+        output[mask] = -output[mask]
+        return output
+    else:
+        inter = torch.clamp((max_xy - min_xy), 0)
+        return inter[:, 0] * inter[:, 1]
+
+
+def iou(box_a, box_b, sign=False):
+    inter = intersect(box_a, box_b, sign=sign)
+    area_a = (box_a[:, 2] - box_a[:, 0]) * (box_a[:, 3] - box_a[:, 1])
+    area_b = (box_b[:, 2] - box_b[:, 0]) * (box_b[:, 3] - box_b[:, 1])
+
+    union = area_a + area_b - inter
+    return inter / union
 
 def get_corners(ry3d, l, w, h, x, y, z):
     batch_size = len(ry3d)
@@ -89,23 +104,31 @@ class MotionLoss(nn.Module):
         corners[:, 0, :] += motion_x.unsqueeze(1)
         corners[:, 1, :] += motion_y.unsqueeze(1)
         corners[:, 2, :] += motion_z.unsqueeze(1)
-
         pred_box = get_2d_corners_from_3d(corners, prev_p2) # [batch_size, 4]
 
-        l1_loss = F.l1_loss(pred_box, prev_box, reduction='none')
-        l1_loss[:, 0::2] = l1_loss[:, 0::2] # / raw_w.unsqueeze(1)
-        l1_loss[:, 1::2] = l1_loss[:, 1::2] # / raw_h.unsqueeze(1)
+        sign_iou = iou(prev_box, pred_box, sign=True)
+        iou_2d_loss = 1-sign_iou
+        iou_2d_loss = iou_2d_loss.mean()
 
-        return l1_loss.mean(), pred_box, prev_box
+
+        # l1_loss = F.l1_loss(pred_box, prev_box, reduction='none')
+        # l1_loss[:, 0::2] = l1_loss[:, 0::2] # / raw_w.unsqueeze(1)
+        # l1_loss[:, 1::2] = l1_loss[:, 1::2] # / raw_h.unsqueeze(1)
+
+        return iou_2d_loss, pred_box, prev_box
 
 
 if __name__ == "__main__":
-    dataset = MotionDataset()
-    dataloader = DataLoader(dataset, batch_size=2, num_workers=4, shuffle=False)
-    criterion = MotionLoss()
-    for data in iter(dataloader):
-        loss = criterion(torch.rand((2, 3)), data)
-        print(loss)
-        input()
+    # dataset = MotionDataset()
+    # dataloader = DataLoader(dataset, batch_size=2, num_workers=4, shuffle=False)
+    # criterion = MotionLoss()
+    # for data in iter(dataloader):
+    #     loss = criterion(torch.rand((2, 3)), data)
+    #     print(loss)
+    #     input()
+    box_a = torch.tensor([[10, 10, 20, 20], [10, 10, 20, 20], [10, 10, 20, 20]], dtype=torch.float32)
+    box_b = torch.tensor([[12, 12, 18, 18], [25, 5, 35, 15], [15, 15, 25, 25]], dtype=torch.float32)
+    print(iou(box_a, box_b, sign=True))
+
         
 
