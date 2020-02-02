@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 
 from lib.motion_data import MotionDataset
 from lib.loss.motion_loss import MotionLoss
+from lib.dense_alignment import dense_alignment
 from models.motion import Motion
 
 np.random.seed(107062513)
@@ -67,8 +68,8 @@ def visualize(motion, data, pred_box, prev_box, epoch, phase):
 def main():
     device = 'cuda:0'
     model_path = '/home/jsharp/M3D-RPN/output/motion'
-    model = Motion().to(device)
-    # model = torch.load(f'/home/jsharp/M3D-RPN/output/motion/model_49.pth').to(device)
+    # model = Motion().to(device)
+    model = torch.load(f'/home/jsharp/M3D-RPN/output/motion/model_199.pth').to(device)
     train_dataset = MotionDataset(phase='training')
     train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, num_workers=0, shuffle=True)
     valid_dataset = MotionDataset(phase='validation')
@@ -77,7 +78,7 @@ def main():
     visual_dataloader = DataLoader(visual_dataset, batch_size=BATCH_SIZE, num_workers=0, shuffle=False)
 
     criterion = MotionLoss()
-    writer = SummaryWriter()
+    # writer = SummaryWriter()
     optimizer = torch.optim.Adam(model.parameters(), lr=3e-5)
 
     step = 0
@@ -123,7 +124,7 @@ def main():
                     motion = model(data)
                     _, pred_box, prev_box = criterion(motion, data)
                     visualize(motion, data, pred_box, prev_box, e, 'validation')
-        
+                    # dense_alignment(motion, data, phase='validation')
                 torch.save(model, os.path.join(model_path, f'model_{e:02d}.pth'))
     writer.close()
 

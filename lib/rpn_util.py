@@ -1334,7 +1334,7 @@ def test_kitti_3d(dataset_test, net, rpn_conf, results_path, test_path, use_log=
     test_start = time()
 
     for imind, impath in enumerate(imlist):
-        print(impath)
+        # print(impath)
         im = cv2.imread(impath)
         if im is None:
             continue
@@ -1371,8 +1371,8 @@ def test_kitti_3d(dataset_test, net, rpn_conf, results_path, test_path, use_log=
                 height = (y2 - y1 + 1)
 
                 # plot 3D box
-                x3d = box[6]
-                y3d = box[7]
+                x2d = box[6]
+                y2d = box[7]
                 z3d = box[8]
                 w3d = box[9]
                 h3d = box[10]
@@ -1380,17 +1380,17 @@ def test_kitti_3d(dataset_test, net, rpn_conf, results_path, test_path, use_log=
                 ry3d = box[12]
 
                 # convert alpha into ry3d
-                coord3d = np.linalg.inv(p2).dot(np.array([x3d * z3d, y3d * z3d, 1 * z3d, 1]))
+                coord3d = np.linalg.inv(p2).dot(np.array([x2d * z3d, y2d * z3d, 1 * z3d, 1]))
                 ry3d = convertAlpha2Rot(ry3d, coord3d[2], coord3d[0])
 
                 step_r = 0.3*math.pi
                 r_lim = 0.01
                 box_2d = np.array([x1, y1, width, height])
 
-                z3d, ry3d, verts_best = hill_climb(p2, p2_inv, box_2d, x3d, y3d, z3d, w3d, h3d, l3d, ry3d, step_r_init=step_r, r_lim=r_lim)
+                z3d, ry3d, verts_best = hill_climb(p2, p2_inv, box_2d, x2d, y2d, z3d, w3d, h3d, l3d, ry3d, step_r_init=step_r, r_lim=r_lim)
 
                 # predict a more accurate projection
-                coord3d = np.linalg.inv(p2).dot(np.array([x3d * z3d, y3d * z3d, 1 * z3d, 1]))
+                coord3d = np.linalg.inv(p2).dot(np.array([x2d * z3d, y2d * z3d, 1 * z3d, 1]))
                 alpha = convertRot2Alpha(ry3d, coord3d[2], coord3d[0])
 
                 x3d = coord3d[0]
@@ -1399,8 +1399,10 @@ def test_kitti_3d(dataset_test, net, rpn_conf, results_path, test_path, use_log=
 
                 y3d += h3d/2
                 
+                # text_to_write += ('{} -1 -1 {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} '
+                #            + '{:.6f} {:.6f}\n').format(cls, alpha, x1, y1, x2, y2, h3d, w3d, l3d, x3d, y3d, z3d, ry3d, score)
                 text_to_write += ('{} -1 -1 {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} '
-                           + '{:.6f} {:.6f}\n').format(cls, alpha, x1, y1, x2, y2, h3d, w3d, l3d, x3d, y3d, z3d, ry3d, score)
+                           + '{:.6f} {:.6f} {:.6f} {:.6f}\n').format(cls, alpha, x1, y1, x2, y2, h3d, w3d, l3d, x3d, y3d, z3d, ry3d, score, x2d, y2d)
                            
         file.write(text_to_write)
         file.close()

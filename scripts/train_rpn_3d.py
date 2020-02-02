@@ -6,6 +6,7 @@ from getopt import getopt
 import numpy as np
 import sys
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 # stop python from writing so much bytecode
 sys.dont_write_bytecode = True
@@ -162,7 +163,7 @@ def main(argv):
 
             # store checkpoint
             save_checkpoint(optimizer, rpn_net, paths.weights, (iteration + 1))
-
+       
             if conf.do_test:
 
                 # eval mode

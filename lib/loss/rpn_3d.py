@@ -122,7 +122,7 @@ class RPN_3D_loss(nn.Module):
         bbox_l3d_dn = bbox_l3d * self.bbox_stds[:, 9][0] + self.bbox_means[:, 9][0]
         bbox_ry3d_dn = bbox_ry3d * self.bbox_stds[:, 10][0] + self.bbox_means[:, 10][0]
 
-        src_anchors = self.anchors[rois[:, 4].type(torch.cuda.LongTensor), :]
+        src_anchors = self.anchors[rois[:, 4].type(torch.cuda.LongTensor).cpu(), :]
         src_anchors = torch.tensor(src_anchors, requires_grad=False).type(torch.cuda.FloatTensor)
         if len(src_anchors.shape) == 1: src_anchors = src_anchors.unsqueeze(0)
 
@@ -193,7 +193,7 @@ class RPN_3D_loss(nn.Module):
                 bg_inds = np.flatnonzero(labels_bg)
                 ign_inds = np.flatnonzero(labels_ign)
 
-                transforms = torch.from_numpy(transforms).cuda()
+                transforms = torch.from_numpy(transforms).cuda().cpu()
 
                 labels[bind, fg_inds] = transforms[fg_inds, 4]
                 labels[bind, ign_inds] = IGN_FLAG
@@ -285,7 +285,7 @@ class RPN_3D_loss(nn.Module):
                     bbox_x3d_dn_fg = bbox_x3d_dn[bind, fg_inds]
                     bbox_y3d_dn_fg = bbox_y3d_dn[bind, fg_inds]
 
-                    src_anchors = self.anchors[rois[fg_inds, 4].type(torch.cuda.LongTensor), :]
+                    src_anchors = self.anchors[rois[fg_inds, 4].type(torch.cuda.LongTensor).cpu(), :]
                     src_anchors = torch.tensor(src_anchors, requires_grad=False).type(torch.cuda.FloatTensor)
                     if len(src_anchors.shape) == 1: src_anchors = src_anchors.unsqueeze(0)
 

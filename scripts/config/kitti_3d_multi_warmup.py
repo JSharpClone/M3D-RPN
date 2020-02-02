@@ -16,7 +16,7 @@ def Config():
     conf.lr = 0.004
     conf.momentum = 0.9
     conf.weight_decay = 0.0005
-    conf.max_iter = 50000
+    conf.max_iter = 100000
     conf.snapshot_iter = 10000
     conf.display = 250
     conf.do_test = True
@@ -122,7 +122,8 @@ def Config():
     conf.bbox_3d_proj_lambda = 0.0
     
     conf.hill_climbing = True
-    
+
+    # conf.pretrained = '/home/jsharp/M3D-RPN-rotation/output/kitti_3d_multi_warmup_org/weights/model_50000_pkl'
     # visdom
     conf.visdom_port = 8100
 
