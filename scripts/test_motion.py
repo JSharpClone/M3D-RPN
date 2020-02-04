@@ -9,10 +9,14 @@ from lib.loss.motion_loss import MotionLoss
 from lib.motion_data import MotionDataset
 
 BATCH_SIZE = 1
+STEPS = 200
 
-results_path = '/home/jsharp/M3D-RPN/output/dense_alignment/data'
+results_path = f'/home/jsharp/M3D-RPN/output/dense_alignment/steps_{STEPS}_proj_center/data'
+# results_path = f'/home/jsharp/M3D-RPN/output/dense_alignment/without_motion/data'
+if not os.path.exists(results_path):
+    os.makedirs(results_path)
 device = 'cuda:1'
-model = torch.load(f'/home/jsharp/M3D-RPN/output/motion/model_199.pth').to(device)
+model = torch.load(f'/home/jsharp/M3D-RPN/output/motion/xyz/model_199.pth').to(device)
 valid_dataset = MotionDataset(phase='validation')
 valid_dataloader = DataLoader(valid_dataset, batch_size=BATCH_SIZE, num_workers=0, shuffle=False)
 criterion = MotionLoss()
@@ -30,9 +34,9 @@ for  data in tqdm(iter(valid_dataloader)):
     
     motion = model(data)
     _, pred_box, prev_box = criterion(motion, data)
-    x3d, y3d, z3d, score = dense_alignment(motion, data, device=device, phase='validation')
+    x3d, y3d, z3d, ry3d, box, score = dense_alignment(motion, data, steps=STEPS, device=device, phase='validation')
     src_id = data['src_id']
-    curr_box = data['curr_box']
+    # curr_box = data['curr_box']
     box_3d = data['box_3d']
 
     curr_id =  f'{src_id[0]:06d}'
@@ -44,15 +48,15 @@ for  data in tqdm(iter(valid_dataloader)):
         text_to_write = ''
         file = open(os.path.join(results_path, curr_id + '.txt'), 'w')
 
-    alpha = -1
-    x1 = curr_box[0, 0]
-    y1 = curr_box[0, 1]
-    x2 = curr_box[0, 2]
-    y2 = curr_box[0, 3]
+    x1 = box[0, 0]
+    y1 = box[0, 1]
+    x2 = box[0, 2]
+    y2 = box[0, 3]
     h3d = box_3d[0, 4]
     w3d = box_3d[0, 5]
     l3d = box_3d[0, 3]
-    ry3d = box_3d[0, 6]
+    alpha = box_3d[0, 7]
+    ry3d = ry3d[0]
     x3d = x3d[0]
     y3d = y3d[0]
     z3d = z3d[0]

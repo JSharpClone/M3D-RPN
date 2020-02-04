@@ -29,7 +29,8 @@ def draw_boxes_2d(box, img, color='red'):
     return img
 
 def draw_text_xyz(img, motion):
-    x, y, z = np.round(motion, decimals=2)
+    # x, y, z = np.round(motion, decimals=2)
+    x, z = np.round(motion, decimals=2)
     img = img.convert('RGBA')
     txt = Image.new('RGBA', img.size, (255,255,255,0))
     # get a font
@@ -37,7 +38,7 @@ def draw_text_xyz(img, motion):
     # get a drawing context
     d = ImageDraw.Draw(txt)
     d.text((10,10), f'x: {x}', font=fnt, fill=(255,0,0,255))
-    d.text((10,60), f'y: {y}', font=fnt, fill=(0,255,0,255))
+    # d.text((10,60), f'y: {y}', font=fnt, fill=(0,255,0,255))
     d.text((10,110), f'z: {z}', font=fnt, fill=(255,255,0,255))
 
     out = Image.alpha_composite(img, txt)
@@ -67,9 +68,9 @@ def visualize(motion, data, pred_box, prev_box, epoch, phase):
 
 def main():
     device = 'cuda:0'
-    model_path = '/home/jsharp/M3D-RPN/output/motion'
-    # model = Motion().to(device)
-    model = torch.load(f'/home/jsharp/M3D-RPN/output/motion/model_199.pth').to(device)
+    model_path = '/home/jsharp/M3D-RPN/output/motion/xz'
+    model = Motion().to(device)
+    # model = torch.load(f'/home/jsharp/M3D-RPN/output/motion/xyz/model_199.pth').to(device)
     train_dataset = MotionDataset(phase='training')
     train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, num_workers=0, shuffle=True)
     valid_dataset = MotionDataset(phase='validation')
@@ -78,7 +79,7 @@ def main():
     visual_dataloader = DataLoader(visual_dataset, batch_size=BATCH_SIZE, num_workers=0, shuffle=False)
 
     criterion = MotionLoss()
-    # writer = SummaryWriter()
+    writer = SummaryWriter()
     optimizer = torch.optim.Adam(model.parameters(), lr=3e-5)
 
     step = 0

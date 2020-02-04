@@ -21,8 +21,10 @@ class MotionDataset(Dataset):
 
         if phase == 'training':
             self.raw_kitti = RawKitti(mode='train')
+            self.proj_center = False
         else:
             self.raw_kitti = RawKitti(mode='val')
+            self.proj_center = True
 
         data_root = os.path.join('/home/jsharp/M3D-RPN/data/kitti_split1/', phase)
         anns_path = os.path.join(data_root, 'motion.json')
@@ -77,6 +79,10 @@ class MotionDataset(Dataset):
             'src_id': src_id,
             'dst_id': dst_id
         }
+
+        if self.proj_center:
+            box_proj_center = torch.tensor(ann['box_proj_center'], dtype=torch.float32)
+            labels['box_proj_center'] = box_proj_center
 
         return labels
         

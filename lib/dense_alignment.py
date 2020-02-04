@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import math
 import matplotlib.pyplot as plt
 from PIL import Image, ImageDraw
 
@@ -8,6 +9,16 @@ import torch
 from lib.loss.motion_loss import get_corners, get_2d_corners_from_3d, iou
 
 SCALE_TRANSLATION = 0.01
+
+def convertAlpha2Rot(alpha, z3d, x3d):
+    
+    ry3d = alpha + torch.atan2(-z3d, x3d) + 0.5 * math.pi
+    #ry3d = alpha + math.atan2(x3d, z3d)# + 0.5 * math.pi
+
+    # while ry3d > math.pi: ry3d -= math.pi * 2
+    # while ry3d < (-math.pi): ry3d += math.pi * 2
+
+    return ry3d
 
 def dense_alignment(motion, data, max_depth=80, min_depth=0, steps=200, device='cuda:1', phase='training'):
     batch_size = motion.size(0)
@@ -23,20 +34,26 @@ def dense_alignment(motion, data, max_depth=80, min_depth=0, steps=200, device='
     motion_y = motion[:, 1]
     motion_z = motion[:, 2]
     box_3d = data['box_3d']
-    x2d = (curr_box[:, 2] + curr_box[:, 0]) / 2
-    y2d = (curr_box[:, 1] + curr_box[:, 3]) / 2
+
+    box_proj_center = data['box_proj_center']
+    x2d = box_proj_center[:, 0]
+    y2d = box_proj_center[:, 1]
+    # x2d = (curr_box[:, 2] + curr_box[:, 0]) / 2
+    # y2d = (curr_box[:, 1] + curr_box[:, 3]) / 2
 
     x3d_list = []
     y3d_list = []
     z3d_list = []
+    box_list = []
+    ry3d_list = []
     score_list = []
     for i in range(batch_size):
         l3d = box_3d[i:i+1, 3]
         h3d = box_3d[i:i+1, 4]
         w3d = box_3d[i:i+1, 5]
-        ry3d = box_3d[i:i+1, 6]
+        alpha = box_3d[i:i+1, 7]
         curr_image = Image.open(os.path.join(data_root, 'image_2', f'{src_id[i]:06d}.png'))
-        prev_image = Image.open(os.path.join(data_root, 'prev_2', f'{src_id[i]:06d}_01.png'))
+        # prev_image = Image.open(os.path.join(data_root, 'prev_2', f'{src_id[i]:06d}_01.png'))
         w, h = curr_image.size
         
         max_iou = 0
@@ -47,6 +64,7 @@ def dense_alignment(motion, data, max_depth=80, min_depth=0, steps=200, device='
             inv_p2 = torch.inverse(curr_p2[i])
             center_3d = inv_p2 @ center_3d_proj
             x3d, y3d, z3d = center_3d[:3]
+            ry3d = alpha + torch.atan2(-z3d, x3d) + 0.5 * math.pi
             corners_3d = get_corners(ry3d, l3d, w3d, h3d, x3d, y3d, z3d)
 
             curr_box_proj = get_2d_corners_from_3d(corners_3d, curr_p2[i:i+1])
@@ -57,18 +75,19 @@ def dense_alignment(motion, data, max_depth=80, min_depth=0, steps=200, device='
 
             curr_iou = iou(curr_box_proj, curr_box[i:i+1])[0]
             prev_iou = iou(prev_box_proj, prev_box[i:i+1])[0]
-
+        
             if curr_iou + prev_iou < 0.2:
                 continue
             
-            curr_box_proj = curr_box_proj.squeeze(0).cpu().numpy()
-            prev_box_proj = prev_box_proj.squeeze(0).cpu().numpy()
+            curr_box_proj = curr_box_proj.squeeze(0)
+            prev_box_proj = prev_box_proj.squeeze(0)
             
             if curr_iou + prev_iou > max_iou:
                 max_iou = curr_iou + prev_iou
                 best_z3d = depth
                 best_x3d = x3d[0]
                 best_y3d = y3d[0]
+                best_ry3d = ry3d[0]
                 best_curr = curr_box_proj
                 best_prev = prev_box_proj
                 best_iou = max_iou / 2
@@ -76,7 +95,10 @@ def dense_alignment(motion, data, max_depth=80, min_depth=0, steps=200, device='
         x3d_list.append(best_x3d)
         y3d_list.append(best_y3d)
         z3d_list.append(best_z3d)
+        box_list.append(best_curr)
+        ry3d_list.append(best_ry3d)
         score_list.append(best_iou)
-    return torch.stack(x3d_list, dim=0), torch.stack(y3d_list, dim=0), torch.stack(z3d_list, dim=0), torch.stack(score_list, dim=0)
+    return torch.stack(x3d_list, dim=0), torch.stack(y3d_list, dim=0), torch.stack(z3d_list, dim=0), \
+        torch.stack(ry3d_list, dim=0), torch.stack(box_list, dim=0), torch.stack(score_list, dim=0)
 
 

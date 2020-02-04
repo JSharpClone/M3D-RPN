@@ -190,6 +190,7 @@ def main(argv):
                 rpn_net.train()
 
                 freeze_layers(rpn_net, freeze_blacklist, freeze_whitelist)
+            
 
 
 # run from command line

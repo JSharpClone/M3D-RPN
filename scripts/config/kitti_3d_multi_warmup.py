@@ -123,7 +123,7 @@ def Config():
     
     conf.hill_climbing = True
 
-    # conf.pretrained = '/home/jsharp/M3D-RPN-rotation/output/kitti_3d_multi_warmup_org/weights/model_50000_pkl'
+    conf.pretrained = '/home/jsharp/M3D-RPN/output/kitti_3d_multi_warmup/weights/model_100000_pkl'
     # visdom
     conf.visdom_port = 8100
 

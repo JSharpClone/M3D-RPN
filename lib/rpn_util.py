@@ -1334,7 +1334,7 @@ def test_kitti_3d(dataset_test, net, rpn_conf, results_path, test_path, use_log=
     test_start = time()
 
     for imind, impath in enumerate(imlist):
-        # print(impath)
+        print(impath)
         im = cv2.imread(impath)
         if im is None:
             continue
@@ -1415,7 +1415,8 @@ def test_kitti_3d(dataset_test, net, rpn_conf, results_path, test_path, use_log=
 
             if use_log: logging.info(print_str)
             else: print(print_str)
-
+    # print('finish')
+    # input()
     # evaluate
     script = os.path.join(test_path, dataset_test, 'devkit', 'cpp', 'evaluate_object')
     with open(os.devnull, 'w') as devnull:
