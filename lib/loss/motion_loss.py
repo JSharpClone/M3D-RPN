@@ -6,7 +6,11 @@ from torch.utils.data import DataLoader
 from lib.motion_data import MotionDataset
 from lib.rpn_util import iou
 
+import math
+
 SCALE_TRANSLATION = 0.01
+SCALE_LHW = 0.1
+SCALE_ALPHA = 1 / math.pi
 HEIGHT = 128 # 512
 WIDTH = 416 # 1760
 
@@ -33,11 +37,11 @@ def iou(box_a, box_b, sign=False):
     return inter / union
 
 def get_corners(ry3d, l, w, h, x, y, z):
-    batch_size = len(ry3d)
+    size = ry3d.size()
     c = torch.cos(ry3d) # [batch_size]
     s = torch.sin(ry3d) # [batch_size]
-    zeros = torch.cuda.FloatTensor(batch_size).fill_(0)
-    ones = torch.cuda.FloatTensor(batch_size).fill_(1)
+    zeros = torch.cuda.FloatTensor(size).fill_(0)
+    ones = torch.cuda.FloatTensor(size).fill_(1)
     R = torch.stack([torch.stack([c, zeros, s], dim=1), # [batch_size, 3, 3]
                         torch.stack([zeros, ones, zeros], dim=1),
                         torch.stack([-s, zeros, c], dim=1)], dim=1)
@@ -46,7 +50,6 @@ def get_corners(ry3d, l, w, h, x, y, z):
     y_corners = torch.stack([-h/2, -h/2, h/2, h/2, -h/2, -h/2, h/2, h/2], dim=1) # [batch_size, 8]
     z_corners = torch.stack([-w/2, -w/2, -w/2, w/2, w/2,-w/2, w/2, -w/2], dim=1) # [batch_size, 8]
     corners = torch.stack([x_corners, y_corners, z_corners], dim=1) # [batch_size, 3, 8]
-
     corners = torch.bmm(R, corners)
     corners[:, 0, :] += x.unsqueeze(1)
     corners[:, 1, :] += y.unsqueeze(1)
@@ -75,47 +78,95 @@ class MotionLoss(nn.Module):
     def __init__(self):
         super(MotionLoss, self).__init__()
     
-    def forward(self, motion, data):
+    def forward(self, data):
         box_3d = data['box_3d']
         prev_box = data['prev_box']
         prev_p2 = data['prev_p2']
         prev_image = data['prev_image']
-        h_scale = data['h_scale']
-        w_scale = data['w_scale']
+        box2_proj_center = data['box2_proj_center']
 
-        h, w = prev_image.size(2), prev_image.size(3)
-        raw_h = h * h_scale
-        raw_w = w * w_scale
+        device = box_3d.device
+        motion = data['motion'] / SCALE_TRANSLATION
+        center_3d_gt = box_3d[:, 0:3]
 
-        motion = motion / SCALE_TRANSLATION
-        motion_x = motion[:, 0]
-        motion_y = motion[:, 1]
-        motion_z = motion[:, 2]
+        prev_center_3d = center_3d_gt.clone()
+        prev_center_3d[:, 0] += motion[:, 0]
+        prev_center_3d[:, 2] += motion[:, 1]
+        # prev_center_3d = center_3d_gt + motion
+        prev_center_3d = torch.cat([prev_center_3d, torch.ones(prev_center_3d.size()[0], 1).to(device)], dim=1)
+        prev_center_3d = prev_center_3d.unsqueeze(dim=2)
+        prev_center_2d = torch.bmm(prev_p2, prev_center_3d).squeeze(dim=2)
+        prev_center_2d = prev_center_2d[:, 0:2] / prev_center_2d[:, 2:3]
 
-        x3d = box_3d[:, 0]
-        y3d = box_3d[:, 1]
-        z3d = box_3d[:, 2]
-        l3d = box_3d[:, 3]
-        h3d = box_3d[:, 4]
-        w3d = box_3d[:, 5]
-        ry3d = box_3d[:, 6]
-        
-        corners = get_corners(ry3d, l3d, w3d, h3d, x3d, y3d, z3d)
-        corners[:, 0, :] += motion_x.unsqueeze(1)
-        corners[:, 1, :] += motion_y.unsqueeze(1)
-        corners[:, 2, :] += motion_z.unsqueeze(1)
-        pred_box = get_2d_corners_from_3d(corners, prev_p2) # [batch_size, 4]
+        x_error = prev_center_2d[:, 0] - box2_proj_center[:, 0]
+        y_error = prev_center_2d[:, 1] - box2_proj_center[:, 1]
+        dis_error = torch.sqrt(x_error**2 + y_error**2).mean()
+    
+        total_loss = dis_error
 
-        sign_iou = iou(prev_box, pred_box, sign=True)
-        iou_2d_loss = 1-sign_iou
-        iou_2d_loss = iou_2d_loss.mean()
+        losses = {
+            'dis_error':  dis_error,
+            'total_loss': total_loss
+        }
 
 
         # l1_loss = F.l1_loss(pred_box, prev_box, reduction='none')
         # l1_loss[:, 0::2] = l1_loss[:, 0::2] # / raw_w.unsqueeze(1)
         # l1_loss[:, 1::2] = l1_loss[:, 1::2] # / raw_h.unsqueeze(1)
 
-        return iou_2d_loss, pred_box, prev_box
+        return losses, prev_center_2d, box2_proj_center
+
+    # align 2D box 
+    # def forward(self, data):
+    #     box_3d = data['box_3d']
+    #     prev_box = data['prev_box']
+    #     prev_p2 = data['prev_p2']
+    #     prev_image = data['prev_image']
+    #     h_scale = data['h_scale']
+    #     w_scale = data['w_scale']
+
+    #     h, w = prev_image.size(2), prev_image.size(3)
+
+    #     motion = data['motion'] / SCALE_TRANSLATION
+    #     motion_x = motion[:, 0]
+    #     motion_y = motion[:, 1]
+    #     motion_z = motion[:, 2]
+
+    #     x3d_gt = box_3d[:, 0]
+    #     y3d_gt = box_3d[:, 1]
+    #     z3d_gt = box_3d[:, 2]
+    #     ry3d_gt = box_3d[:, 6]
+    #     # alpha_gt = box_3d[:, 7]
+    #     # ry3d_gt = alpha_gt + torch.atan2(-z3d_gt, x3d_gt) + 0.5 * math.pi
+
+
+    #     lhw_gt = box_3d[:, 3:6]
+    #     l3d_gt = lhw_gt[:, 0] 
+    #     h3d_gt = lhw_gt[:, 1] 
+    #     w3d_gt = lhw_gt[:, 2] 
+    #     corners = get_corners(ry3d_gt, l3d_gt, w3d_gt, h3d_gt, x3d_gt, y3d_gt, z3d_gt)
+    #     corners[:, 0, :] += motion_x.unsqueeze(1)
+    #     corners[:, 1, :] += motion_y.unsqueeze(1)
+    #     corners[:, 2, :] += motion_z.unsqueeze(1)
+    #     pred_box = get_2d_corners_from_3d(corners, prev_p2) # [batch_size, 4]
+
+    #     sign_iou = iou(prev_box, pred_box, sign=True)
+    #     iou_2d_loss = 1-sign_iou
+    #     iou_2d_loss = iou_2d_loss.mean()
+
+    #     total_loss = iou_2d_loss
+
+    #     losses = {
+    #         'iou_loss':  iou_2d_loss,
+    #         'total_loss': total_loss
+    #     }
+
+
+    #     # l1_loss = F.l1_loss(pred_box, prev_box, reduction='none')
+    #     # l1_loss[:, 0::2] = l1_loss[:, 0::2] # / raw_w.unsqueeze(1)
+    #     # l1_loss[:, 1::2] = l1_loss[:, 1::2] # / raw_h.unsqueeze(1)
+
+    #     return losses, pred_box, prev_box
 
 
 if __name__ == "__main__":
