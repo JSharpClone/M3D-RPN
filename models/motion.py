@@ -12,7 +12,7 @@ def fc_relu(in_channel, out_channel):
             nn.ReLU(inplace=True),
             )
 
-VECTOR_SIZE = 3
+VECTOR_SIZE = 2
 SCALE_TRANSLATION = 0.01
 
 class Motion(nn.Module):
@@ -27,9 +27,13 @@ class Motion(nn.Module):
         self.conv5 = conv_relu(128, 256, 3, stride=2)
         self.conv6 = conv_relu(256, 256, 3, stride=2)
         self.conv7 = conv_relu(256, 256, 3, stride=2)
+        # self.motion_predict = nn.Sequential(
+        #     nn.Linear(1024+3, 512),
+        #     nn.Linear(512, VECTOR_SIZE)
+        # )
         self.motion_predict = nn.Linear(1024+3, VECTOR_SIZE)
-        # self.motion_predict = nn.Conv2d(256, VECTOR_SIZE, 1)
-    
+        
+        
     def forward(self, data):
         curr_image = data['curr_image']
         prev_image = data['prev_image']
@@ -49,13 +53,11 @@ class Motion(nn.Module):
 
         x = x.view(batch_size, -1)
         x = torch.cat([x, ego_motion_t], dim=1)
-        # x = self.fc1(x)
-        # x = self.fc2(x)
         motion = self.motion_predict(x)
-        # motion = motion.mean(dim=[2,3])
-        # motion = motion * SCALE_TRANSLATION
 
-        return motion
+        data['motion'] = motion
+
+        return data
 
 if __name__ == "__main__":
     device = 'cuda'

@@ -44,43 +44,72 @@ def draw_text_xyz(img, motion):
     out = Image.alpha_composite(img, txt)
     return out
 
-def visualize(motion, data, pred_box, prev_box, epoch, phase):
+def draw_circle(img, center, color):
+    draw = ImageDraw.Draw(img)
+    draw.ellipse((center[0]-10, center[1]-10, center[0]+10, center[1]+10), fill = color)
+    return img
+
+def visualize(data, pred_center, prev_center, epoch, phase, save_root):
+    motion = data['motion']
     batch_size = motion.size(0)
     data_root = f'/home/jsharp/M3D-RPN/data/kitti_split1/{phase}'
     src_id = data['src_id'].cpu().numpy()
     dst_id = data['dst_id'].cpu().numpy()
-    pred_box = pred_box.detach().cpu().numpy()
-    prev_box = prev_box.detach().cpu().numpy()
+    pred_center = pred_center.detach().cpu().numpy()
+    prev_center = prev_center.detach().cpu().numpy()
     motion = motion.detach().cpu().numpy() / SCALE_TRANSLATION
 
     for i in range(batch_size):
         image_path = os.path.join(data_root, 'prev_2', f'{src_id[i]:06d}_01.png')
         image = Image.open(image_path)
-        image = draw_boxes_2d(prev_box[i], image, color='green')
-        image = draw_boxes_2d(pred_box[i], image, color='red')
         image = draw_text_xyz(image, motion[i])
+        image = draw_circle(image, pred_center[i], 'yellow')
+        image = draw_circle(image, prev_center[i], 'red')
 
-        save_root = f'/home/jsharp/M3D-RPN/motion_visual/{phase}/{epoch}'
-        if not os.path.exists(save_root):
-            os.makedirs(save_root)
+        save_path = os.path.join(save_root, f'visual/{epoch}')
+        os.makedirs(save_path, exist_ok=True)
+        image.save(os.path.join(save_path, f'{dst_id[i]:06d}.png'))
 
-        image.save(os.path.join(save_root, f'{dst_id[i]:06d}.png'))
+# def visualize(data, pred_box, prev_box, epoch, phase, save_root):
+#     motion = data['motion']
+#     batch_size = motion.size(0)
+#     data_root = f'/home/jsharp/M3D-RPN/data/kitti_split1/{phase}'
+#     src_id = data['src_id'].cpu().numpy()
+#     dst_id = data['dst_id'].cpu().numpy()
+#     pred_box = pred_box.detach().cpu().numpy()
+#     prev_box = prev_box.detach().cpu().numpy()
+#     motion = motion.detach().cpu().numpy() / SCALE_TRANSLATION
+
+#     for i in range(batch_size):
+#         image_path = os.path.join(data_root, 'prev_2', f'{src_id[i]:06d}_01.png')
+#         image = Image.open(image_path)
+#         image = draw_boxes_2d(prev_box[i], image, color='green')
+#         image = draw_boxes_2d(pred_box[i], image, color='red')
+#         image = draw_text_xyz(image, motion[i])
+
+#         # save_root = f'/home/jsharp/M3D-RPN/motion_visual/{epoch}'
+#         save_path = os.path.join(save_root, f'visual/{epoch}')
+#         if not os.path.exists(save_path):
+#             os.makedirs(save_path)
+
+#         image.save(os.path.join(save_path, f'{dst_id[i]:06d}.png'))
 
 def main():
     device = 'cuda:0'
-    model_path = '/home/jsharp/M3D-RPN/output/motion/xz'
+    save_path = '/home/jsharp/M3D-RPN/output/motion/proj_center_loss/xz'
     model = Motion().to(device)
-    # model = torch.load(f'/home/jsharp/M3D-RPN/output/motion/xyz/model_199.pth').to(device)
+    # model = torch.load(f'/home/jsharp/M3D-RPN/output/motion/xyzlhw/model_39.pth').to(device)
     train_dataset = MotionDataset(phase='training')
     train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, num_workers=0, shuffle=True)
-    valid_dataset = MotionDataset(phase='validation')
+    valid_dataset = MotionDataset(phase='validation', use_predict_val=False)
     valid_dataloader = DataLoader(valid_dataset, batch_size=BATCH_SIZE, num_workers=0, shuffle=False)
     visual_dataset = Subset(valid_dataset, range(100))
     visual_dataloader = DataLoader(visual_dataset, batch_size=BATCH_SIZE, num_workers=0, shuffle=False)
 
     criterion = MotionLoss()
     writer = SummaryWriter()
-    optimizer = torch.optim.Adam(model.parameters(), lr=3e-5)
+    optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[50,100,150], gamma=0.1)
 
     step = 0
     with tqdm(total=EPOCH*len(train_dataset), ascii=True) as pbar:
@@ -91,42 +120,46 @@ def main():
                     data[k] = v.to(device)
 
                 optimizer.zero_grad()
-                motion = model(data)
-                loss, _, _ = criterion(motion, data)
+                data = model(data)
+                losses, _, _ = criterion(data)
+                loss = losses['total_loss']
                 loss.backward()
                 optimizer.step()
 
-                writer.add_scalar('train loss', loss.item(), global_step=step)
+                writer.add_scalar('train total loss', losses['total_loss'].item(), global_step=step)
                 step += 1
                 pbar.update(BATCH_SIZE)
                 pbar.set_postfix({'Epoch': e})
-    
-            if (e + 1) % 20 ==0:
-                valid_loss = []
+
+            scheduler.step()
+
+            if (e + 1) % 5 ==0:
+                valid_total_loss = []
                 model.eval()
 
                 # validation
                 for  data in iter(valid_dataloader):
                     for k, v in data.items():
                         data[k] = v.to(device)
-                    
-                    motion = model(data)
-                    loss, pred_box, prev_box = criterion(motion, data)
-                    valid_loss.append(loss.item())
-                    # visualize(motion, data, pred_box, prev_box, e, 'validation')
-        
-                writer.add_scalar('valid loss', sum(valid_loss)/len(valid_loss), global_step=e)
 
+                    data = model(data)
+                    losses, pred_center, prev_center = criterion(data)
+                    valid_total_loss.append(losses['total_loss'].item())
+        
+                writer.add_scalar('valid total loss', sum(valid_total_loss)/len(valid_total_loss), global_step=e)
+            
                 # visualization
                 for  data in iter(visual_dataloader):
                     for k, v in data.items():
                         data[k] = v.to(device)
                     
-                    motion = model(data)
-                    _, pred_box, prev_box = criterion(motion, data)
-                    visualize(motion, data, pred_box, prev_box, e, 'validation')
+                    data = model(data)
+                    _, pred_center, prev_center = criterion(data)
+                    visualize(data, pred_center, prev_center, e, 'validation', save_root=save_path)
+        
                     # dense_alignment(motion, data, phase='validation')
-                torch.save(model, os.path.join(model_path, f'model_{e:02d}.pth'))
+                torch.save(model, os.path.join(save_path, f'model_{e:02d}.pth'))
+
     writer.close()
 
 if __name__ == '__main__':

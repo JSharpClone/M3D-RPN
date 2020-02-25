@@ -19,9 +19,10 @@ else:
     num_data = 3769
 
 align_gt = False
-motion_test = True
+motion_test = False
+prev_frame = 3
 
-save_root = f'./data/kitti_split1/{phase}/motion_M3D_proj_test/'
+save_root = f'./data/kitti_split1/{phase}/motion_M3D_proj_{prev_frame}/'
 os.makedirs(save_root, exist_ok=True)
 
 def bbox2d_alignment(curr_bboxes, prev_bboxes, curr_image, prev_image):
@@ -75,6 +76,8 @@ def get_label_bbox(filename, idx, gt=False):
 
 
 anns = []
+#
+# error_list = []
 for i in tqdm(range(num_data)):
     idx = f'{i:06d}'
     data_root = f'/home/jsharp/M3D-RPN/data/kitti_split1/{phase}/'
@@ -85,15 +88,15 @@ for i in tqdm(range(num_data)):
 
     if align_gt:
         true_label_path = os.path.join(data_root, 'label_2', f'{idx}.txt')
-        pred_label_path = os.path.join(data_root, 'label_2_M3D', f'{idx}.txt')
+        pred_label_path = os.path.join(data_root, 'label_2_car', f'{idx}.txt')
     else:
         if phase == 'training' or motion_test:
             curr_label_path = os.path.join(data_root, 'label_2', f'{idx}.txt')
         else:
             curr_label_path = os.path.join(data_root, 'label_2_M3D_proj', f'{idx}.txt')
 
-    prev_img_path = os.path.join(data_root, 'prev_2', f'{idx}_01.png')
-    prev_label_path = os.path.join(data_root, 'prev_label_2_M3D_proj', f'{idx}_01.txt')
+    prev_img_path = os.path.join(data_root, 'prev_2', f'{idx}_0{prev_frame}.png')
+    prev_label_path = os.path.join(data_root, 'prev_label_2_M3D_proj', f'{idx}_0{prev_frame}.txt')
     if not os.path.exists(prev_label_path):
         continue
     if align_gt:
@@ -110,6 +113,12 @@ for i in tqdm(range(num_data)):
         curr_bboxes_3d = pred_bboxes_3d[cids]
         true_bboxes_3d = true_bboxes_3d[rids]
         curr_bboxes_proj_center = pred_bboxes_proj_center[cids]
+        #
+        # true_bboxes_proj_center = true_bboxes_proj_center[rids]
+        # error = curr_bboxes_proj_center - true_bboxes_proj_center
+        # error = np.sqrt(error[:, 0]**2 + error[:, 1]**2)
+        # error_list.append(error)
+
     else:
         if os.stat(prev_label_path).st_size == 0 or os.stat(curr_label_path).st_size == 0:
             continue
@@ -117,7 +126,11 @@ for i in tqdm(range(num_data)):
             curr_bboxes_2d, curr_bboxes_3d, curr_bboxes_proj_center  = get_label_bbox(curr_label_path, idx, gt=True)
         else:
             curr_bboxes_2d, curr_bboxes_3d, curr_bboxes_proj_center  = get_label_bbox(curr_label_path, idx, gt=False)
-         
+
+#
+# error = np.concatenate(error_list, axis=0)
+# print(error.shape)
+# print(error.mean())
 
     prev_img = Image.open(prev_img_path)
     prev_bboxes_2d, prev_bboxes_3d, prev_bboxes_proj_center = get_label_bbox(prev_label_path, idx, gt=False)
@@ -166,7 +179,7 @@ for i in tqdm(range(num_data)):
 
         anns.append(d)
 
-with open(f'./data/kitti_split1/{phase}/motion_M3D_proj_test.json', 'w') as f:
+with open(f'./data/kitti_split1/{phase}/motion_M3D_proj_3.json', 'w') as f:
     json.dump(anns, f, indent=2)
 
 

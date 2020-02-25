@@ -16,22 +16,25 @@ WIDTH = 416 # 1760
 
 class MotionDataset(Dataset):
 
-    def __init__(self, phase='training'):
+    def __init__(self, phase='training', use_predict_val=False):
         super(MotionDataset, self).__init__()
 
         if phase == 'training':
             self.raw_kitti = RawKitti(mode='train')
-            self.proj_center = False
         else:
             self.raw_kitti = RawKitti(mode='val')
-            self.proj_center = True
 
         data_root = os.path.join('/home/jsharp/M3D-RPN/data/kitti_split1/', phase)
-        anns_path = os.path.join(data_root, 'motion.json')
+        if phase == 'validation' and use_predict_val == False:
+            anns_path = os.path.join(data_root, 'motion_M3D_proj_test.json')
+            self.motion_root = os.path.join(data_root, 'motion_M3D_proj_test')
+        else:
+            anns_path = os.path.join(data_root, 'motion_M3D_proj_3.json')
+            self.motion_root = os.path.join(data_root, 'motion_M3D_proj_3')
+
         with open(anns_path, 'r') as f:
             self.anns = json.load(f)
         
-        self.motion_root = os.path.join(data_root, 'motion')
         self.transfrom = transforms.Compose([
             transforms.Resize((HEIGHT, WIDTH)),
             transforms.ToTensor(),
@@ -57,6 +60,9 @@ class MotionDataset(Dataset):
 
         box_3d = torch.tensor(ann['box_3d'], dtype=torch.float32)
 
+        box1_proj_center = torch.tensor(ann['box1_proj_center'], dtype=torch.float32)
+        box2_proj_center = torch.tensor(ann['box2_proj_center'], dtype=torch.float32)
+
         curr_p2, prev_p2, relative_pose = self.raw_kitti.get_previous_p2(src_id, previous_num=1)
         curr_p2 = torch.from_numpy(curr_p2).float()
         prev_p2 = torch.from_numpy(prev_p2).float()
@@ -75,14 +81,15 @@ class MotionDataset(Dataset):
             'ego_motion_t': ego_motion_t,
             'curr_box': curr_box,
             'prev_box': prev_box,
+            'box1_proj_center': box1_proj_center,
+            'box2_proj_center': box2_proj_center,
             'box_3d': box_3d,
             'src_id': src_id,
-            'dst_id': dst_id
+            'dst_id': dst_id,
         }
-
-        if self.proj_center:
-            box_proj_center = torch.tensor(ann['box_proj_center'], dtype=torch.float32)
-            labels['box_proj_center'] = box_proj_center
+        if 'box_3d_gt' in ann.keys():
+            box_3d_gt = torch.tensor(ann['box_3d_gt'], dtype=torch.float32)
+            labels['box_3d_gt'] =  box_3d_gt
 
         return labels
         

@@ -1377,11 +1377,11 @@ def test_kitti_3d(dataset_test, net, rpn_conf, results_path, test_path, use_log=
                 w3d = box[9]
                 h3d = box[10]
                 l3d = box[11]
-                ry3d = box[12]
+                alpha = box[12]
 
                 # convert alpha into ry3d
                 coord3d = np.linalg.inv(p2).dot(np.array([x2d * z3d, y2d * z3d, 1 * z3d, 1]))
-                ry3d = convertAlpha2Rot(ry3d, coord3d[2], coord3d[0])
+                ry3d = convertAlpha2Rot(alpha, coord3d[2], coord3d[0])
 
                 step_r = 0.3*math.pi
                 r_lim = 0.01
@@ -1391,7 +1391,7 @@ def test_kitti_3d(dataset_test, net, rpn_conf, results_path, test_path, use_log=
 
                 # predict a more accurate projection
                 coord3d = np.linalg.inv(p2).dot(np.array([x2d * z3d, y2d * z3d, 1 * z3d, 1]))
-                alpha = convertRot2Alpha(ry3d, coord3d[2], coord3d[0])
+                # alpha = convertRot2Alpha(ry3d, coord3d[2], coord3d[0])
 
                 x3d = coord3d[0]
                 y3d = coord3d[1]
@@ -1415,8 +1415,8 @@ def test_kitti_3d(dataset_test, net, rpn_conf, results_path, test_path, use_log=
 
             if use_log: logging.info(print_str)
             else: print(print_str)
-    # print('finish')
-    # input()
+    print('finish')
+    input()
     # evaluate
     script = os.path.join(test_path, dataset_test, 'devkit', 'cpp', 'evaluate_object')
     with open(os.devnull, 'w') as devnull:
@@ -1546,5 +1546,4 @@ def test_projection(p2, p2_inv, box_2d, cx, cy, z, w3d, h3d, l3d, rotY):
     ol = -(np.abs(x - x_new) + np.abs(y - y_new) + np.abs(x2 - x2_new) + np.abs(y2 - y2_new))
 
     return ol, verts3d, b2, invalid
-
 
