@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from PIL import Image, ImageDraw
 
 import torch
+from torchvision.ops import roi_align
 
 from lib.loss.motion_loss import get_corners, get_2d_corners_from_3d, iou
 

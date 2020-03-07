@@ -95,7 +95,7 @@ def draw_boxes_3d(xyz_b, whl_b, ry_b, p2, img):
         x2 = np.round(max(verts3d[:, 0]))
         y2 = np.round(max(verts3d[:, 1]))
         
-        draw.ellipse((front_2d[0]-10, front_2d[1]-10, front_2d[0]+10, front_2d[1]+10), fill = 'yellow')
+        # draw.ellipse((front_2d[0]-10, front_2d[1]-10, front_2d[0]+10, front_2d[1]+10), fill = 'yellow')
         draw.rectangle((x, y, x2, y2), outline='red', width=5)
     return img
 
@@ -153,13 +153,13 @@ def get_P2(idx, mode):
     p2 = np.array(p2).reshape(3, 4)
     return p2
 
-# def get_3d_label(idx):
-#     labels = pd.read_csv(f'/home/jsharp/M3D-RPN/data/kitti_split1/training/label_2/{idx}.txt', header=None, delimiter=' ')
-#     labels.drop(columns=labels.columns[15:], inplace=True)
-#     labels.columns = ['class', 'truncate', 'occ', 'alpha', 'x1', 'y1', 'x2', 'y2', 'h3d', 'w3d', 'l3d', 'x3d', 'y3d', 'z3d', 'ry3d']
-#     bbox_3d = labels[['x3d', 'y3d', 'z3d', 'w3d', 'h3d', 'l3d', 'ry3d']].values
-#     bbox_3d[:, 1] -= bbox_3d[:, 4] / 2
-#     return bbox_3d[:, 0:3], bbox_3d[:, 3:6], bbox_3d[:, 6]
+def get_3d_label(idx):
+    labels = pd.read_csv(f'/home/jsharp/M3D-RPN/data/kitti_split1/training/label_2/{idx}.txt', header=None, delimiter=' ')
+    labels.drop(columns=labels.columns[15:], inplace=True)
+    labels.columns = ['class', 'truncate', 'occ', 'alpha', 'x1', 'y1', 'x2', 'y2', 'h3d', 'w3d', 'l3d', 'x3d', 'y3d', 'z3d', 'ry3d']
+    bbox_3d = labels[['x3d', 'y3d', 'z3d', 'w3d', 'h3d', 'l3d', 'ry3d']].values
+    bbox_3d[:, 1] -= bbox_3d[:, 4] / 2
+    return bbox_3d[:, 0:3], bbox_3d[:, 3:6], bbox_3d[:, 6]
 
 # def get_2d_label(idx, prev=False):
 #     if prev:
@@ -207,14 +207,20 @@ class RawKitti():
 
 if __name__ == "__main__":
     raw_kitti = RawKitti(mode='train')
-    for idx in range(0, 3712):
+    for idx in range(3711, -1, -1):
         idx = f'{idx:06d}'
-        p2, p_target = raw_kitti.get_previous_p2(idx, previous_num=1)
+        p2, p_target, relative_pose = raw_kitti.get_previous_p2(idx, previous_num=1)
+        ego_motion_t = np.expand_dims(relative_pose[:, 3], axis=0)
+        
         c3d, whl, ry = get_3d_label(idx)
 
         img = Image.open(f'/home/jsharp/M3D-RPN/data/kitti_split1/training/image_2/{idx}.png')
+        # img = Image.open(f'/home/jsharp/M3D-RPN/data/kitti_split1/training/prev_2/{idx}_01.png')
         prev_img = Image.open(f'/home/jsharp/M3D-RPN/data/kitti_split1/training/prev_2/{idx}_01.png')
         img = draw_boxes_3d(c3d, whl, ry, p2, img)
+        # img = draw_boxes_3d(c3d, whl, ry, p_target, img)
+
+        # c3d += ego_motion_t
         prev_img = draw_boxes_3d(c3d, whl, ry, p_target, prev_img)
         fig, ax = plt.subplots(2, 1)
         ax[0].imshow(img)
