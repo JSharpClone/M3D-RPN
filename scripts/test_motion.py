@@ -13,7 +13,7 @@ STEPS = 200
 SCALE_LHW = 0.1
 
 # results_path = f'/home/jsharp/M3D-RPN/output/dense_alignment/steps_{STEPS}_xyz_car/data'
-results_path = f'/home/jsharp/M3D-RPN/output/dense_alignment/steps_{STEPS}_M3D_3/data'
+results_path = f'/home/jsharp/M3D-RPN/output/dense_alignment/steps_{STEPS}_M3D_without_motion/data'
 if not os.path.exists(results_path):
     os.makedirs(results_path)
 device = 'cuda:1'
@@ -36,7 +36,7 @@ for  data in tqdm(iter(valid_dataloader)):
     
     data = model(data)
     # _, pred_box, prev_box = criterion(data)
-    x3d, y3d, z3d, ry3d, box, score = dense_alignment(data, steps=STEPS, device=device, phase='validation', use_box=False)
+    x3d, y3d, z3d, ry3d, box, score = dense_alignment(data, steps=STEPS, device=device, phase='validation', use_box=True, use_motion=False)
     src_id = data['src_id']
     # curr_box = data['curr_box']
     box_3d = data['box_3d']

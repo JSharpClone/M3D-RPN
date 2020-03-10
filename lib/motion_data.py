@@ -29,13 +29,13 @@ class MotionDataset(Dataset):
             anns_path = os.path.join(data_root, 'motion_M3D_proj_test.json')
             self.motion_root = os.path.join(data_root, 'motion_M3D_proj_test')
         else:
-            anns_path = os.path.join(data_root, 'motion_M3D_proj_3.json')
-            self.motion_root = os.path.join(data_root, 'motion_M3D_proj_3')
+            anns_path = os.path.join(data_root, 'motion_M3D_proj.json')
+            self.motion_root = os.path.join(data_root, 'motion_M3D_proj')
 
         with open(anns_path, 'r') as f:
             self.anns = json.load(f)
         
-        self.transfrom = transforms.Compose([
+        self.transform = transforms.Compose([
             transforms.Resize((HEIGHT, WIDTH)),
             transforms.ToTensor(),
             # transforms.Normalize(image_means, image_stds),
@@ -55,8 +55,8 @@ class MotionDataset(Dataset):
         w_scale = torch.tensor(w / WIDTH, dtype=torch.float32)
         h_scale = torch.tensor(h / HEIGHT, dtype=torch.float32)
 
-        curr_image = self.transfrom(curr_image)
-        prev_image = self.transfrom(prev_image)
+        curr_image = self.transform(curr_image)
+        prev_image = self.transform(prev_image)
 
         box_3d = torch.tensor(ann['box_3d'], dtype=torch.float32)
 

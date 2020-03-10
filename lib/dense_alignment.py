@@ -22,7 +22,7 @@ def convertAlpha2Rot(alpha, z3d, x3d):
 
     return ry3d
 
-def dense_alignment(data, max_depth=80, min_depth=0, steps=200, device='cuda:1', phase='training', use_box=True):
+def dense_alignment(data, max_depth=80, min_depth=0, steps=200, device='cuda:1', phase='training', use_box=True, use_motion=True):
     data_root = f'/home/jsharp/M3D-RPN/data/kitti_split1/{phase}'
 
     motion = data['motion']
@@ -98,9 +98,10 @@ def dense_alignment(data, max_depth=80, min_depth=0, steps=200, device='cuda:1',
     if use_box:
         corners_3d = get_corners(ry3d, l3d, w3d, h3d, x3d, y3d, z3d)
         curr_box_proj = get_2d_corners_from_3d(corners_3d, curr_p2)
-        corners_3d[:, 0, :] += motion_x
-        corners_3d[:, 1, :] += motion_y
-        corners_3d[:, 2, :] += motion_z
+        if use_motion:
+            corners_3d[:, 0, :] += motion_x
+            corners_3d[:, 1, :] += motion_y
+            corners_3d[:, 2, :] += motion_z
         
         prev_box_proj = get_2d_corners_from_3d(corners_3d, prev_p2)
 
@@ -118,7 +119,11 @@ def dense_alignment(data, max_depth=80, min_depth=0, steps=200, device='cuda:1',
         best_prev = prev_box_proj[best_idx]
         best_iou = iou_sum[best_idx] / 2
     else: # use only projected center
-        prev_center_3d = center_3d[:, 0:3] + motion
+        if use_motion:
+            prev_center_3d = center_3d[:, 0:3] + motion
+        else:
+            prev_center_3d = center_3d[:, 0:3]
+            
         prev_center_3d = torch.cat([prev_center_3d, torch.ones((steps, 1, 1)).to(device)], dim=1)
         prev_proj_center = torch.bmm(prev_p2, prev_center_3d)
         prev_proj_center[:, 0:2, :] /= prev_proj_center[:, 2:3, :]
